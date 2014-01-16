@@ -74,8 +74,10 @@ elsif ::Redis::Store.rails3?
     include RedisStore::Rack::Session::Rails
   end
 else
-  class ActionController::Session::RedisSessionStore < ActionController::Session::AbstractStore
-    include RedisStore::Rack::Session::Rails
+  if defined? ActionController
+    class ActionController::Session::RedisSessionStore < ActionController::Session::AbstractStore
+      include RedisStore::Rack::Session::Rails
+    end
   end
 end
 
