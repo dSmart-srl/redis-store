@@ -1,3 +1,5 @@
+require 'redis-store'
+
 module I18n
   module Backend
     class Redis
@@ -25,12 +27,12 @@ module I18n
       #   RedisStore.new "localhost:6379/0", "localhost:6380/0"
       #     # => instantiate a cluster
       def initialize(*addresses)
-        @store = ::Redis::Factory.create(addresses)
+        @store = ::Redis::Store::Factory.create(addresses)
       end
 
       def translate(locale, key, options = {})
         options[:resolve] ||= false
-        super locale, key, options
+        lookup(locale, key, [],options)
       end
 
       def store_translations(locale, data, options = {})
@@ -54,14 +56,47 @@ module I18n
       end
 
       protected
-        def lookup(locale, key, scope = [], options = {})
-          key = normalize_flat_keys(locale, key, scope, options[:separator])
-          @store.get "#{locale}.#{key}"
+      def lookup(locale, key, scope = [], options = {})
+        if options[:scope] and scope.empty?
+          scope = options[:scope]
+        end
+        #puts '-'
+        #puts locale
+        #puts key
+        #puts scope.inspect
+        #puts options.inspect
+        #puts '-'
+
+        key = normalize_flat_keys(locale, key, scope, options[:separator])
+        #puts "normalize_flat_keys #{key}"
+
+        main_key = "#{locale}.#{key}"
+        if result = @store.get(main_key)
+          #puts "Main ->->->-> #{result}"
+          return result
         end
 
-        def resolve_link(locale, key)
-          key
+        child_keys = @store.keys("#{main_key}.*")
+
+        if child_keys.empty?
+          #puts "NIL"
+          return nil
         end
+
+        result = { }
+        subkey_part = (main_key.size + 1)..(-1)
+        child_keys.each do |child_key|
+          subkey         = child_key[subkey_part].to_sym
+          result[subkey] = @store.get child_key
+        end
+        ##puts "Final ->->-> #{result.inspect}"
+        result
+      end
+
+      def resolve_link(locale, key)
+        key
+      end
     end
   end
 end
+
