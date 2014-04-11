@@ -6,6 +6,12 @@ module I18n
       include Base, Flatten
       attr_accessor :store
 
+
+      RESERVED_KEYS = [:scope, :default, :separator, :resolve]
+      RESERVED_KEYS_PATTERN = /%\{(#{RESERVED_KEYS.join("|")})\}/
+      DEPRECATED_INTERPOLATION_SYNTAX_PATTERN = /(\\)?\{\{([^\}]+)\}\}/
+      INTERPOLATION_SYNTAX_PATTERN = /%\{([^\}]+)\}/
+
       # Instantiate the store.
       #
       # Example:
@@ -32,7 +38,20 @@ module I18n
 
       def translate(locale, key, options = {})
         options[:resolve] ||= false
-        lookup(locale, key, [],options)
+
+        if options.empty?
+          entry = lookup(locale, key, [], options)
+        else
+          count, default = options.values_at(:count, :default)
+          values = options.except(*RESERVED_KEYS)
+          entry = entry.nil? && default ?
+            default(locale, key, default, options) : lookup(locale, key, [], options)
+        end
+
+        entry = pluralize(locale, entry, count) if count
+        entry = interpolate(locale, entry, values) if values
+
+        entry
       end
 
       def store_translations(locale, data, options = {})
@@ -56,6 +75,69 @@ module I18n
       end
 
       protected
+        def default(locale, object, subject, options = {})
+          options = options.dup.reject { |key, value| key == :default }
+          case subject
+          when Array
+            subject.each do |item|
+              result = resolve(locale, object, item, options) and return result
+            end and nil
+          else
+            resolve(locale, object, subject, options)
+          end
+        end
+
+
+        def pluralize(locale, entry, count)
+          return entry unless entry.is_a?(Hash) && count
+
+          key = :zero if count == 0 && entry.has_key?(:zero)
+          key ||= count == 1 ? :one : :other
+          raise InvalidPluralizationData.new(entry, count) unless entry.has_key?(key)
+          entry[key]
+        end
+        def interpolate(locale, string, values = {})
+          return string unless string.is_a?(::String) && !values.empty?
+          original_values = values.dup
+
+          preserve_encoding(string) do
+            string = string.gsub(DEPRECATED_INTERPOLATION_SYNTAX_PATTERN) do
+              escaped, key = $1, $2.to_sym
+              if escaped
+                "{{#{key}}}"
+              else
+                warn_syntax_deprecation!
+                "%{#{key}}"
+              end
+            end
+
+            keys = string.scan(INTERPOLATION_SYNTAX_PATTERN).flatten
+            return string if keys.empty?
+
+            values.each do |key, value|
+              if keys.include?(key.to_s)
+                value = value.call(values) if interpolate_lambda?(value, string, key)
+                value = value.to_s unless value.is_a?(::String)
+                values[key] = value
+              else
+                values.delete(key)
+              end
+            end
+
+            string % values
+          end
+        rescue KeyError => e
+          if string =~ RESERVED_KEYS_PATTERN
+            raise ReservedInterpolationKey.new($1.to_sym, string)
+          else
+            raise MissingInterpolationArgument.new(original_values, string)
+          end
+        end
+
+
+
+
+
       def lookup(locale, key, scope = [], options = {})
         if options[:scope] and scope.empty?
           scope = options[:scope]
