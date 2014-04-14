@@ -36,24 +36,6 @@ module I18n
         @store = ::Redis::Store::Factory.create(addresses)
       end
 
-      def translate(locale, key, options = {})
-        options[:resolve] ||= false
-
-        if options.empty?
-          entry = lookup(locale, key, [], options)
-        else
-          count, default = options.values_at(:count, :default)
-          values = options.except(*RESERVED_KEYS)
-          entry = entry.nil? && default ?
-            default(locale, key, default, options) : lookup(locale, key, [], options)
-        end
-
-        entry = pluralize(locale, entry, count) if count
-        entry = interpolate(locale, entry, values) if values
-
-        entry
-      end
-
       def store_translations(locale, data, options = {})
         escape = options.fetch(:escape, true)
         flatten_translations(locale, data, escape, false).each do |key, value|
