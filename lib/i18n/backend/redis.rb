@@ -121,7 +121,7 @@ module I18n
 
 
       def lookup(locale, key, scope = [], options = {})
-        if options[:scope] and scope.empty?
+        if options[:scope] and (scope.nil? or (scope.is_a?(Array) and scope.empty?))
           scope = options[:scope]
         end
         #puts '-'
