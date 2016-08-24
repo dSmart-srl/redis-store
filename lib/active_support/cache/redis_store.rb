@@ -34,7 +34,6 @@ module ::RedisStore
       end
 
       def read(key, options = nil)
-        p 'read'
         super
         @data.get key, options
       end
