@@ -37,6 +37,10 @@ class Redis
         super *keys.map {|key| interpolate(key) }
       end
 
+      def delete_matched(matcher, options = nil)
+        super(interpolate(matcher))
+      end
+
       def to_s
         "#{super} with namespace #{@namespace}"
       end

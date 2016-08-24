@@ -34,6 +34,7 @@ module ::RedisStore
       end
 
       def read(key, options = nil)
+        p 'read'
         super
         @data.get key, options
       end
@@ -53,9 +54,25 @@ module ::RedisStore
       # Example:
       #   cache.del_matched "rab*"
       def delete_matched(matcher, options = nil)
+        matcher= @data.delete_matched(matcher)
         instrument(:delete_matched, matcher, options) do
-          !(keys = @data.keys(matcher)).empty? && @data.del(*keys)
-        end
+          #!(keys = @data.keys(matcher)).empty? && @data.del(*keys)
+          begin
+            idx = -1
+            c = 0
+            while idx.to_i != 0
+              idx = 0 if idx == -1
+              idx, keys = @data.scan(idx,'match',matcher)
+              if keys && keys.any?
+                c += keys.length 
+                @data.del(*keys) 
+              end
+            end
+            c
+          rescue Errno::ECONNREFUSED => e
+            false
+          end          
+        end        
       end
 
       private

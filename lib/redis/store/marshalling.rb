@@ -13,6 +13,10 @@ class Redis
         _unmarshal super(key), options
       end
 
+      def delete_matched(matcher,options=nil)
+        matcher
+      end
+
       def mget(*keys)
         options = keys.flatten.pop if keys.flatten.last.is_a?(Hash)
         super(*keys).map do |result|
