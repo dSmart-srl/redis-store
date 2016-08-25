@@ -144,7 +144,7 @@ module I18n
         idx = -1
         while idx.to_i != 0
           idx = 0 if idx == -1
-          idx, keys = @store.scan(idx,'match',"#{main_key}.*")
+          idx, keys = @store.scan(idx,'match',"#{main_key}.*","count 1000")
           if keys && keys.any?
             child_keys += keys
           end

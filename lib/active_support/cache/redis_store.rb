@@ -59,14 +59,16 @@ module ::RedisStore
           begin
             idx = -1
             c = 0
+            delete_keys = []
             while idx.to_i != 0
               idx = 0 if idx == -1
-              idx, keys = @data.scan(idx,'match',matcher)
+              idx, keys = @data.scan(idx,'match',matcher,'count 1000')
               if keys && keys.any?
                 c += keys.length 
-                @data.del(*keys) 
+                delete_keys += keys
               end
             end
+            @data.del(*delete_keys) if delete_keys.any? 
             c
           rescue Errno::ECONNREFUSED => e
             false
