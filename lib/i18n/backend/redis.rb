@@ -32,8 +32,13 @@ module I18n
       #
       #   RedisStore.new "localhost:6379/0", "localhost:6380/0"
       #     # => instantiate a cluster
+      def old_initialize(*addresses)
+        @store = ::Redis::Store::Factory.create(addresses)
+      end
+
       def initialize(*addresses)
         @store = ::Redis::Store::Factory.create(addresses)
+        @matches = {}
       end
 
       def store_translations(locale, data, options = {})
@@ -117,10 +122,57 @@ module I18n
         end
 
 
-
-
-
       def lookup(locale, key, scope = [], options = {})
+        if options[:scope] and (scope.nil? or (scope.is_a?(Array) and scope.empty?))
+          scope = options[:scope]
+        end
+        key = normalize_flat_keys(locale, key, scope, options[:separator])
+
+        main_key = "#{locale}.#{key}"
+        if @matches[main_key]
+          return @matches[main_key]
+        else
+          if result = @store.get(main_key)
+            @matches[main_key]=result
+            return result
+          end
+        end
+
+        use_scan= false
+        if use_scan
+          child_keys = []
+          idx = -1
+          while idx.to_i != 0
+            idx = 0 if idx == -1
+            idx, keys = @store.scan(idx,'match',"#{main_key}.*","count","1000")
+            if keys && keys.any?
+              child_keys += keys
+            end
+          end
+        else
+          child_keys = @store.keys("#{main_key}.*")
+        end
+
+        if child_keys.empty?
+          return nil
+        end
+        result = { }
+        subkey_part = (main_key.size + 1)..(-1)
+        child_keys.each do |child_key|
+          subkey         = child_key[subkey_part].to_sym
+          if @matches[subkey]
+            result[subkey] = @matches[subkey]
+          else
+            result[subkey] = @store.get child_key
+            @matches[subkey] = result[subkey]
+          end
+        end
+        result
+
+      end
+
+
+      def old_lookup(locale, key, scope = [], options = {})
         if options[:scope] and (scope.nil? or (scope.is_a?(Array) and scope.empty?))
           scope = options[:scope]
         end
@@ -140,17 +192,20 @@ module I18n
           return result
         end
 
-        child_keys = []
-        idx = -1
-        while idx.to_i != 0
-          idx = 0 if idx == -1
-          idx, keys = @store.scan(idx,'match',"#{main_key}.*","count 1000")
-          if keys && keys.any?
-            child_keys += keys
+        use_scan= false
+        if use_scan
+          child_keys = []
+          idx = -1
+          while idx.to_i != 0
+            idx = 0 if idx == -1
+            idx, keys = @store.scan(idx,'match',"#{main_key}.*","count","1000")
+            if keys && keys.any?
+              child_keys += keys
+            end
           end
+        else
+          child_keys = @store.keys("#{main_key}.*")
         end
-        #child_keys = @store.keys("#{main_key}.*")
-
         if child_keys.empty?
           #puts "NIL"
           return nil

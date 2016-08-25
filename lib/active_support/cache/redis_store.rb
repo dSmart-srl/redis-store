@@ -54,22 +54,27 @@ module ::RedisStore
       #   cache.del_matched "rab*"
       def delete_matched(matcher, options = nil)
         matcher= @data.delete_matched(matcher)
+        use_scan = true
         instrument(:delete_matched, matcher, options) do
-          #!(keys = @data.keys(matcher)).empty? && @data.del(*keys)
           begin
-            idx = -1
-            c = 0
-            delete_keys = []
-            while idx.to_i != 0
-              idx = 0 if idx == -1
-              idx, keys = @data.scan(idx,'match',matcher,'count 1000')
-              if keys && keys.any?
-                c += keys.length 
-                delete_keys += keys
+            if use_scan
+              idx = -1
+              c = 0
+              delete_keys = []
+              while idx.to_i != 0
+                idx = 0 if idx == -1
+                idx, keys = @data.scan(idx,'match',matcher,'count','1000')
+                if keys && keys.any?
+                  c += keys.length 
+                  delete_keys += keys
+                end
               end
+              delete_keys.uniq!
+              @data.del(*delete_keys) if delete_keys.any? 
+              c
+            else
+              !(keys = @data.keys(matcher)).empty? && @data.del(*keys)
             end
-            @data.del(*delete_keys) if delete_keys.any? 
-            c
           rescue Errno::ECONNREFUSED => e
             false
           end          
