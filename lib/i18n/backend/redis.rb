@@ -32,11 +32,11 @@ module I18n
       #
       #   RedisStore.new "localhost:6379/0", "localhost:6380/0"
       #     # => instantiate a cluster
-      def old_initialize(*addresses)
+      def initialize(*addresses)
         @store = ::Redis::Store::Factory.create(addresses)
       end
 
-      def initialize(*addresses)
+      def new_initialize(*addresses)
         @store = ::Redis::Store::Factory.create(addresses)
         @matches = {}
       end
@@ -122,7 +122,7 @@ module I18n
         end
 
 
-      def lookup(locale, key, scope = [], options = {})
+      def new_lookup(locale, key, scope = [], options = {})
         if options[:scope] and (scope.nil? or (scope.is_a?(Array) and scope.empty?))
           scope = options[:scope]
         end
@@ -172,7 +172,7 @@ module I18n
       end
 
 
-      def old_lookup(locale, key, scope = [], options = {})
+      def lookup(locale, key, scope = [], options = {})
         if options[:scope] and (scope.nil? or (scope.is_a?(Array) and scope.empty?))
           scope = options[:scope]
         end
