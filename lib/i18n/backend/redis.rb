@@ -39,6 +39,7 @@ module I18n
       def initialize(*addresses)
         @store = ::Redis::Store::Factory.create(addresses)
         @matches = {}
+        available_locales.each {|loc| @matches[loc]={} }
       end
 
       def store_translations(locale, data, options = {})
@@ -171,11 +172,11 @@ module I18n
         key = normalize_flat_keys(locale, key, scope, options[:separator])
 
         main_key = "#{locale}.#{key}"
-        if @matches[main_key]
-          return @matches[main_key]
+        if @matches[locale][main_key]
+          return @matches[locale][main_key]
         else
           if result = @store.get(main_key)
-            @matches[main_key]=result
+            @matches[locale][main_key]=result
             return result
           end
         end
@@ -202,11 +203,11 @@ module I18n
         subkey_part = (main_key.size + 1)..(-1)
         child_keys.each do |child_key|
           subkey         = child_key[subkey_part].to_sym
-          if @matches[subkey]
-            result[subkey] = @matches[subkey]
+          if @matches[locale][subkey]
+            result[subkey] = @matches[locale][subkey]
           else
             result[subkey] = @store.get child_key
-            @matches[subkey] = result[subkey]
+            @matches[locale][subkey] = result[subkey]
           end
         end
         result
