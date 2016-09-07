@@ -32,11 +32,11 @@ module I18n
       #
       #   RedisStore.new "localhost:6379/0", "localhost:6380/0"
       #     # => instantiate a cluster
-      def initialize(*addresses)
+      def old_initialize(*addresses)
         @store = ::Redis::Store::Factory.create(addresses)
       end
 
-      def new_initialize(*addresses)
+      def initialize(*addresses)
         @store = ::Redis::Store::Factory.create(addresses)
         @matches = {}
       end
@@ -83,6 +83,48 @@ module I18n
           raise InvalidPluralizationData.new(entry, count) unless entry.has_key?(key)
           entry[key]
         end
+
+        def new_interpolate(locale, string, values = {})
+          return string unless string.is_a?(::String) && !values.empty?
+          original_values = values.dup
+          
+          p locale,string,values
+
+          preserve_encoding(string) do
+            string = string.gsub(DEPRECATED_INTERPOLATION_SYNTAX_PATTERN) do
+              escaped, key = $1, $2.to_sym
+              if escaped
+                "{{#{key}}}"
+              else
+                warn_syntax_deprecation!
+                "%{#{key}}"
+              end
+            end
+
+            keys = string.scan(INTERPOLATION_SYNTAX_PATTERN).flatten
+            return string if keys.empty?
+
+            values.each do |key, value|
+              if keys.include?(key.to_s)
+                value = value.call(values) if interpolate_lambda?(value, string, key)
+                value = value.to_s unless value.is_a?(::String)
+                values[key] = value
+              else
+                values.delete(key)
+              end
+            end
+
+            string % values
+          end
+        rescue KeyError => e
+          if string =~ RESERVED_KEYS_PATTERN
+            raise ReservedInterpolationKey.new($1.to_sym, string)
+          else
+            p e.message
+            raise MissingInterpolationArgument.new(original_values, string)
+          end
+        end
+
         def interpolate(locale, string, values = {})
           return string unless string.is_a?(::String) && !values.empty?
           original_values = values.dup
@@ -122,7 +164,7 @@ module I18n
         end
 
 
-      def new_lookup(locale, key, scope = [], options = {})
+      def lookup(locale, key, scope = [], options = {})
         if options[:scope] and (scope.nil? or (scope.is_a?(Array) and scope.empty?))
           scope = options[:scope]
         end
@@ -172,7 +214,7 @@ module I18n
       end
 
 
-      def lookup(locale, key, scope = [], options = {})
+      def old_lookup(locale, key, scope = [], options = {})
         if options[:scope] and (scope.nil? or (scope.is_a?(Array) and scope.empty?))
           scope = options[:scope]
         end
